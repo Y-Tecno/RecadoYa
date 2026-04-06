@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "isBanned": { "type": "boolean" },
+        "rating": { "type": "number" },
+        "completedErrands": { "type": "number" }
+      },
+      "required": ["uid", "email", "isBanned"]
+    },
+    "Errand": {
+      "title": "Errand",
+      "description": "An errand request",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "location": { "type": "string" },
+        "city": { "type": "string" },
+        "category": { "type": "string", "enum": ["compras", "transporte", "hogar", "tecnologia", "otros"] },
+        "status": { "type": "string", "enum": ["open", "pending", "accepted", "completed", "cancelled"] },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "candidateName": { "type": "string" },
+        "counterPrice": { "type": "number" },
+        "counterOfferStatus": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "acceptedById": { "type": "string" },
+        "acceptedByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "hasBeenReviewed": { "type": "boolean" }
+      },
+      "required": ["title", "description", "price", "status", "creatorId", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A report against a user",
+      "type": "object",
+      "properties": {
+        "errandId": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reportedId": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["errandId", "reporterId", "reportedId", "reason", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A review for a completed errand",
+      "type": "object",
+      "properties": {
+        "errandId": { "type": "string" },
+        "reviewerId": { "type": "string" },
+        "revieweeId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["errandId", "reviewerId", "revieweeId", "rating", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/errands/{errandId}": {
+      "schema": "Errand",
+      "description": "Errand listings"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "User reports"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "User reviews"
+    }
+  }
+}

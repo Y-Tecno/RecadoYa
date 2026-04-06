@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Fields: uid, email, displayName, photoURL, isBanned, rating, completedErrands
+    //
+    // Collection: errands
+    // Fields: title, description, price, location, status, creatorId, creatorName, acceptedById, acceptedByName, createdAt, completedAt
+    //
+    // Collection: reports
+    // Fields: errandId, reporterId, reportedId, reason, createdAt
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isNotBanned() {
+      return isAuthenticated() && 
+        (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned == false);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin') ||
+         (request.auth.token.email == "alvaro12fb@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return data.get('uid', '') is string &&
+             data.get('email', '') is string &&
+             data.get('isBanned', false) is bool;
+    }
+
+    function isValidErrand(data) {
+      return data.get('title', '') is string && data.title.size() > 0 && data.title.size() < 100 &&
+             data.get('description', '') is string && data.description.size() > 0 && data.description.size() < 1000 &&
+             data.get('price', 0) is number && data.price > 0 &&
+             data.get('city', '') is string &&
+             data.get('category', '') in ['compras', 'transporte', 'hogar', 'tecnologia', 'otros'] &&
+             data.get('status', '') in ['open', 'pending', 'accepted', 'completed', 'cancelled'] &&
+             data.get('creatorId', '') is string &&
+             data.get('createdAt', timestamp.value(0)) is timestamp &&
+             (data.get('counterPrice', 0) is number || !('counterPrice' in data)) &&
+             (data.get('counterOfferStatus', '') in ['pending', 'accepted', 'rejected'] || !('counterOfferStatus' in data));
+    }
+
+    function isValidReport(data) {
+      return data.get('errandId', '') is string &&
+             data.get('reporterId', '') is string &&
+             data.get('reportedId', '') is string &&
+             data.get('reason', '') is string && data.reason.size() > 0 &&
+             data.get('createdAt', timestamp.value(0)) is timestamp;
+    }
+
+    function isValidReview(data) {
+      return data.get('errandId', '') is string &&
+             data.get('reviewerId', '') is string &&
+             data.get('revieweeId', '') is string &&
+             data.get('rating', 0) is number && data.rating >= 1 && data.rating <= 5 &&
+             data.get('createdAt', timestamp.value(0)) is timestamp;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.isBanned == false;
+      allow update: if isAuthenticated() && (isAdmin() || (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.isBanned == resource.data.isBanned));
+    }
+
+    match /errands/{errandId} {
+      allow read: if isAuthenticated();
+      allow create: if isNotBanned() && isValidErrand(request.resource.data) && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isNotBanned() && 
+                    (
+                      isAdmin() || 
+                      (
+                        isValidErrand(request.resource.data) && 
+                        (
+                          request.auth.uid == resource.data.creatorId || 
+                          request.auth.uid == resource.data.acceptedById || 
+                          request.auth.uid == resource.data.candidateId ||
+                          (resource.data.status == 'open' && request.resource.data.status == 'pending' && request.resource.data.candidateId == request.auth.uid) ||
+                          (resource.data.status == 'pending' && request.resource.data.status == 'accepted' && request.auth.uid == resource.data.creatorId) ||
+                          (resource.data.status == 'pending' && request.resource.data.status == 'open' && request.auth.uid == resource.data.creatorId)
+                        )
+                      )
+                    );
+      allow delete: if isNotBanned() && (request.auth.uid == resource.data.creatorId && resource.data.status == 'open' || isAdmin());
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isNotBanned() && isValidReport(request.resource.data) && request.resource.data.reporterId == request.auth.uid;
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isNotBanned() && isValidReview(request.resource.data) && request.resource.data.reviewerId == request.auth.uid;
+    }
+  }
+}
